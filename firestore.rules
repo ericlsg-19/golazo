@@ -29,6 +29,23 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Ligas de amigos: leagues/{codigo}. Se entra sabiendo el código (no se pueden listar).
+    match /leagues/{code} {
+      allow get: if signedIn();
+      allow create: if signedIn() && request.resource.data.owner == request.auth.uid
+        && request.resource.data.name is string && request.resource.data.name.size() <= 24;
+      allow update, delete: if signedIn() && (resource.data.owner == request.auth.uid || isAdmin());
+
+      // Puntos de cada jugador en la liga: cada uno escribe solo su propia fila.
+      match /members/{uid} {
+        allow read: if signedIn();
+        allow create, update: if signedIn() && request.auth.uid == uid
+          && exists(/databases/$(database)/documents/leagues/$(code));
+        allow delete: if signedIn() && (request.auth.uid == uid
+          || get(/databases/$(database)/documents/leagues/$(code)).data.owner == request.auth.uid);
+      }
+    }
+
     // Todo lo demás, cerrado.
     match /{document=**} {
       allow read, write: if false;

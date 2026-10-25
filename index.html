@@ -85,7 +85,7 @@ main.app{position:relative;z-index:1;max-width:1120px;margin:0 auto;padding-left
 .tlabel{font-family:var(--display);font-style:italic;font-weight:800;font-size:20px;text-transform:uppercase;letter-spacing:.04em;line-height:1}
 .tile-match{grid-column:span 2;grid-row:span 2;background:linear-gradient(135deg,rgba(30,227,180,.16),transparent 45%),linear-gradient(0deg,rgba(255,61,139,.12),transparent 50%),var(--glass)}
 .tile-obj{grid-column:span 1}
-@media (max-width:860px){.hub{grid-template-columns:1fr 1fr}.tile-match,.tile-obj,.tile-board,.tile-chal{grid-column:1/-1}.tile-match{grid-row:auto}}
+@media (max-width:860px){.hub{grid-template-columns:1fr 1fr}.tile-match,.tile-obj,.tile-board,.tile-chal,.tile-liga{grid-column:1/-1}.tile-match{grid-row:auto}}
 .versus{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;flex:1;padding:12px 0}
 .side{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;min-width:0}
 .side .crest{width:min(120px,26vw);height:auto}
@@ -321,6 +321,18 @@ body.ovopen .top,body.ovopen main.app,body.ovopen .tabs{visibility:hidden}
 .result .actions{display:flex;flex-direction:column;gap:10px;width:min(380px,100%)}
 .mstats{width:min(460px,100%);display:flex;flex-direction:column;gap:2px}
 .mstats div{display:grid;grid-template-columns:1fr auto;gap:12px;padding:9px 14px;background:rgba(255,255,255,.05);font-weight:700;text-align:left}
+.tile-liga{grid-column:1/-1}
+.rank{display:flex;flex-direction:column;gap:4px}
+.rk{display:grid;grid-template-columns:2.2em auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:8px 12px;background:rgba(255,255,255,.05)}
+.rk.me{background:linear-gradient(90deg,rgba(30,227,180,.25),rgba(30,227,180,.06));box-shadow:inset 3px 0 0 var(--acc)}
+.rk .pos{font-family:var(--display);font-style:italic;font-weight:900;font-size:26px;line-height:1;text-align:center;color:var(--muted)}
+.rk:nth-child(1) .pos{color:var(--gold)}.rk:nth-child(2) .pos{color:#D7DEEE}.rk:nth-child(3) .pos{color:#E0A36B}
+.rk .crest{width:30px;height:35px}
+.rk p{font-weight:800;line-height:1.15;min-width:0;overflow-wrap:anywhere}.rk p small{display:block;color:var(--muted);font-weight:600;font-size:12px}
+.rk b{font-family:var(--display);font-weight:800;font-size:26px;line-height:1;font-variant-numeric:tabular-nums;text-align:right}
+.rk b small{display:block;font-family:var(--body);font-size:10px;letter-spacing:.1em;color:var(--muted);font-weight:800}
+.champ{display:flex;align-items:center;gap:12px;padding:12px 14px;background:linear-gradient(90deg,rgba(255,201,60,.22),rgba(255,201,60,.04));border-left:3px solid var(--gold);font-weight:700}
+.champ svg{width:34px;height:34px;color:var(--gold);flex:none}
 .mstats.cmp div{grid-template-columns:1fr;gap:2px}.mstats.cmp b{font-family:var(--body);font-size:15px;line-height:1.3}
 .mstats b{font-family:var(--display);font-weight:800;font-size:22px;line-height:1}
 .reward{display:flex;align-items:center;gap:14px;padding:12px 16px;text-align:left;width:min(460px,100%)}
@@ -694,7 +706,7 @@ function avatar(p, cls = 'pc-av') {
 }
 
 /* ---------------- estado ---------------- */
-const fresh = () => ({ club: '', colors: ['#1EE3B4', '#0C1330'], coins: 0, packs: [], cards: {}, levels: {}, voice: true, sound: true, started: false, claimed: {}, listens: 0, tut: false, stats: {}, mistakes: [], days: [], answered: 0 });
+const fresh = () => ({ club: '', colors: ['#1EE3B4', '#0C1330'], coins: 0, packs: [], cards: {}, levels: {}, voice: true, sound: true, started: false, claimed: {}, listens: 0, tut: false, stats: {}, mistakes: [], days: [], answered: 0, leagues: [], week: null, lastWeek: null, ptsTotal: 0 });
 function load() { try { const r = localStorage.getItem(STORE); if (r) return Object.assign(fresh(), JSON.parse(r)); } catch (e) { } return fresh(); }
 // cuenta en la nube (Firebase): se completa cuando carga el módulo de Firebase al final de la página
 var AUTH = { ready: false, user: null, username: '', mode: (() => { try { return localStorage.getItem('golazo-mode') || 'cloud'; } catch (e) { return 'cloud'; } })(), waiting: false, keepLocal: false, armOut: false };
@@ -1344,6 +1356,7 @@ function viewHome() {
         <p style="font-weight:700">Jugá una fecha y mandale el código por WhatsApp: tu amigo juega las mismas preguntas.</p></div>
       <button class="btn pink wide sm" data-act="chal">Desafiar o aceptar</button>
     </div>
+    ${ligaTile()}
   </section>`;
 }
 function objHTML(o) {
@@ -1463,7 +1476,7 @@ function viewBoard() {
    OVERLAYS
    ========================================================= */
 function showOv(html, mode = '', wide = false) { $ov.hidden = false; $ov.className = mode; $ov.innerHTML = `<div class="ov-in ${wide ? 'wide' : ''}">${html}</div>`; document.body.style.overflow = 'hidden'; document.body.classList.add('ovopen'); }
-function hideOv() { $ov.hidden = true; $ov.innerHTML = ''; $ov.className = ''; document.body.style.overflow = ''; document.body.classList.remove('ovopen'); AU.ambient(false); if (TTS) try { speechSynthesis.cancel(); } catch (e) { } if (STD.mode !== 'menu') stdMode('menu'); render(); }
+function hideOv() { $ov.hidden = true; $ov.innerHTML = ''; $ov.className = ''; document.body.style.overflow = ''; document.body.classList.remove('ovopen'); if (typeof LQ !== 'undefined' && LQ.pending && AUTH.user && S.started && !LQ.shown && !(S.leagues || []).includes(LQ.pending)) { LQ.shown = true; setTimeout(() => ACT.liga(), 400); } AU.ambient(false); if (TTS) try { speechSynthesis.cancel(); } catch (e) { } if (STD.mode !== 'menu') stdMode('menu'); render(); }
 
 /* ---------- intro ---------- */
 let introTimers = [];
@@ -1658,7 +1671,7 @@ function endMatch() {
   const stars = won ? (ratio >= .875 ? 3 : ratio >= .75 ? 2 : 1) : 0;
   const prev = S.levels[L.id] || { won: false, stars: 0 }, firstWin = won && !prev.won;
   const bonus = Math.max(0, stars - prev.stars) * 30, coins = M.coins + (won ? 50 : 0) + bonus;
-  S.coins += coins; if (firstWin) S.packs.push(L.reward);
+  S.coins += coins; if (firstWin) S.packs.push(L.reward); if (won) addPoints(3);
   S.levels[L.id] = { won: prev.won || won, stars: Math.max(prev.stars, stars) }; save();
   AU.ambient(false); AU.whistle(3); if (won) setTimeout(() => { AU.roar(3, .35); confetti(); }, 1300);
   const champ = firstWin && L.id === 12, nextL = LEVELS[L.id];
@@ -1816,6 +1829,7 @@ const qKey = x => [x.type, x.prompt, x.body, x.answer, (x.words || []).join(' ')
 function track(q, ok) {
   const d = today(); if (!S.days.includes(d)) { S.days.push(d); S.days = S.days.slice(-90); }
   S.answered = (S.answered || 0) + 1;
+  if (ok) addPoints(1);
   if (q.lvl) { const st = S.stats[q.lvl] || (S.stats[q.lvl] = { ok: 0, n: 0 }); st.n++; if (ok) st.ok++; }
   if (q.mkey && ok) S.mistakes = S.mistakes.filter(m => m.k !== q.mkey);
   if (!ok && !q.mkey) {
@@ -1927,6 +1941,7 @@ function mergeSaves(a, b) {
   out.stats = {};
   for (const src of [a.stats || {}, b.stats || {}]) for (const [id, x] of Object.entries(src)) { const o = out.stats[id] || (out.stats[id] = { ok: 0, n: 0 }); o.ok += x.ok || 0; o.n += x.n || 0; }
   out.days = uniq([...(a.days || []), ...(b.days || [])]).sort().slice(-90);
+  out.leagues = uniq([...(a.leagues || []), ...(b.leagues || [])]).slice(0, 5); out.ptsTotal = (a.ptsTotal || 0) + (b.ptsTotal || 0);
   out.listens = (a.listens || 0) + (b.listens || 0); out.answered = (a.answered || 0) + (b.answered || 0);
   const seen = new Set(); out.mistakes = [...(a.mistakes || []), ...(b.mistakes || [])].filter(m => m && !seen.has(m.k) && seen.add(m.k)).slice(-30);
   return out;
@@ -2284,6 +2299,14 @@ const ACT = {
   logout: () => doLogout(),
   pplayers: () => profePlayers(),
   pplayer: b => profePlayerReport(b.dataset.uid),
+  liga: () => { LQ.msg = ''; ligaMenu(); },
+  lqsel: b => { LQ.cur = b.dataset.c; LQ.armLeave = false; ligaMenu(); },
+  lqview: b => { LQ.view = b.dataset.v; ligaMenu(true); },
+  lqcreate: () => ligaCreate(),
+  lqjoin: () => ligaJoin(),
+  lqnew: () => { LQ.cur = null; LQ.msg = ''; ligaMenu(true); },
+  lqcopy: () => copyText(ligaInvite(LQ.cur), 'Invitación copiada. Mandala por WhatsApp.', 'lq-share'),
+  lqleave: () => ligaLeave(),
   introskip: () => introEnd(),
   profe: () => { profe(); },
   review: () => startReview(),
@@ -2408,8 +2431,9 @@ async function onAuthChange(user) {
       const snap = await FB.get('players/' + user.uid);
       if (snap.exists() && snap.data().state) S = Object.assign(fresh(), JSON.parse(snap.data().state));
       else if (!AUTH.keepLocal) S = fresh();
+      rollWeek();
       try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) { }
-      cloudSave(true);
+      cloudSave(true); loadLigaTile();
     } catch (e) { toast('No se pudo leer tu progreso de la nube: ' + fbErr(e)); }
     AUTH.keepLocal = false; LG.busy = false;
     if (!$ov.hidden && $ov.querySelector('[data-act=lgin],[data-act=lgup]')) { hideOv(); if (!S.started) welcome(); else toast(`¡Hola, ${AUTH.username}!`); }
@@ -2432,7 +2456,7 @@ let cloudTimer = null;
 function cloudSave(now) {
   if (!window.FB || !AUTH.user) return Promise.resolve();
   clearTimeout(cloudTimer);
-  const go = () => FB.set('players/' + AUTH.user.uid, { username: AUTH.username, club: S.club || '', state: JSON.stringify(S), summary: summarize() }).catch(e => toast('No se pudo guardar en la nube: ' + fbErr(e)));
+  const go = () => { syncLeagues(); return FB.set('players/' + AUTH.user.uid, { username: AUTH.username, club: S.club || '', state: JSON.stringify(S), summary: summarize() }).catch(e => toast('No se pudo guardar en la nube: ' + fbErr(e))); };
   if (now) return go();
   cloudTimer = setTimeout(go, 2500); return Promise.resolve();
 }
@@ -2452,6 +2476,134 @@ async function loadCloudUnits() {
     if (JSON.stringify(list) !== JSON.stringify(UNITS)) { applyUnits(list); if ($ov.hidden) render(); }
   } catch (e) { }
 }
+/* ---------- ligas de amigos con ranking semanal ---------- */
+const LQ = { cur: null, view: 'week', msg: '', cache: {}, busy: false, armLeave: false, pending: (() => { const m = location.hash.match(/^#liga-([A-Z0-9]{6})$/i); return m ? m[1].toUpperCase() : null; })() };
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function weekKey(offset = 0) { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + offset * 7); return ymd(d); }
+function rollWeek() {
+  const k = weekKey();
+  if (!S.week || S.week.key !== k) { if (S.week && S.week.pts) S.lastWeek = { key: S.week.key, pts: S.week.pts }; S.week = { key: k, pts: 0 }; }
+}
+function addPoints(n) { rollWeek(); S.week.pts += n; S.ptsTotal = (S.ptsTotal || 0) + n; }
+function memberDoc() {
+  rollWeek();
+  return { username: AUTH.username, club: S.club || 'Mi Club', colors: S.colors, week: S.week.key, wpts: S.week.pts, total: S.ptsTotal || 0, lastWeek: S.lastWeek || null,
+    won: LEVELS.filter(l => S.levels[l.id]?.won).length, stars: totalStars() };
+}
+function syncLeagues() { if (!window.FB || !AUTH.user) return; const m = memberDoc(); for (const c of S.leagues || []) FB.set(`leagues/${c}/members/${AUTH.user.uid}`, m).catch(() => { }); }
+const newCode = () => Array.from({ length: 6 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[rnd(32)]).join('');
+function ligaInvite(code) {
+  const L = LQ.cache[code];
+  return `⚽ ¡Sumate a mi liga "${L ? L.name : code}" en Golazo English! Cada semana vemos quién mete más goles en inglés.\n1) Abrí: ${GAME_URL}#liga-${code}\n2) Creá tu cuenta (o entrá con la tuya)\n3) En el Inicio tocá "Unirme" o poné el código: ${code}`;
+}
+async function fetchLiga(code) {
+  const [ld, ms] = await Promise.all([FB.get('leagues/' + code), FB.list(`leagues/${code}/members`)]);
+  if (!ld.exists()) return null;
+  const cur = weekKey(), prev = weekKey(-1);
+  const members = ms.docs.map(d => { const m = d.data(); return { uid: d.id, ...m,
+    wk: m.week === cur ? (m.wpts || 0) : 0,
+    lw: m.week === prev ? (m.wpts || 0) : (m.lastWeek && m.lastWeek.key === prev ? m.lastWeek.pts : 0) }; });
+  const champ = members.filter(m => m.lw > 0).sort((a, b) => b.lw - a.lw)[0] || null;
+  return (LQ.cache[code] = { code, ...ld.data(), members, champ, at: Date.now() });
+}
+function rankRows(L, view, limit) {
+  const key = view === 'total' ? 'total' : 'wk';
+  return L.members.slice().sort((a, b) => (b[key] || 0) - (a[key] || 0) || (b.won || 0) - (a.won || 0)).slice(0, limit || 99).map((m, i) => `<div class="rk ${AUTH.user && m.uid === AUTH.user.uid ? 'me' : ''}">
+    <span class="pos">${i + 1}</span>${crest(m.club || '?', Array.isArray(m.colors) ? m.colors : ['#1EE3B4', '#0C1330'])}
+    <p>${esc(m.club || 'Mi Club')}<small>${esc(m.username || '')} · ${m.won || 0} fechas ganadas</small></p>
+    <b>${m[key] || 0}<small>PUNTOS</small></b></div>`).join('');
+}
+const champHTML = L => L.champ ? `<div class="champ">${ICON.trophy}<span>Campeón de la semana pasada: <b>${esc(L.champ.club)}</b> (${esc(L.champ.username)}) con ${L.champ.lw} puntos</span></div>` : '';
+function ligaTile() {
+  if (!window.FB) return '';
+  if (!AUTH.user) return `<div class="panel tile tile-liga"><div class="tlabel">Liga de amigos</div><p style="font-weight:700">Creá tu cuenta para jugar una liga con tus amigos: cada semana gana el que mete más goles en inglés.</p><button class="btn wide sm" data-act="gologin">Entrar o crear cuenta</button></div>`;
+  if (LQ.pending && !(S.leagues || []).includes(LQ.pending)) return `<div class="panel tile tile-liga"><div class="tlabel">Te invitaron a una liga</div><p style="font-weight:700">Código <b>${LQ.pending}</b>. Sumate y competí con tus amigos cada semana.</p><button class="btn pink wide" data-act="liga">Unirme a la liga</button></div>`;
+  const code = (S.leagues || [])[0], L = code && LQ.cache[code];
+  if (!code) return `<div class="panel tile tile-liga"><div class="tlabel">Liga de amigos</div><p style="font-weight:700">Armá una liga, invitá a tus amigos por WhatsApp y vean quién mete más goles cada semana. Cada respuesta correcta vale 1 punto y cada partido ganado, 3.</p><button class="btn wide" data-act="liga">Crear o unirme a una liga</button></div>`;
+  return `<div class="panel tile tile-liga"><div class="sec-head"><div class="tlabel">${L ? esc(L.name) : 'Mi liga'}</div><span class="muted" style="font-weight:800;font-size:13px">Esta semana · se reinicia el lunes</span></div>
+    ${L ? champHTML(L) + `<div class="rank">${rankRows(L, 'week', 3)}</div>` : '<p class="muted">Cargando ranking…</p>'}
+    <button class="btn wide sm" data-act="liga">Ver la liga completa</button></div>`;
+}
+async function loadLigaTile() {
+  const code = (S.leagues || [])[0]; if (!code || !window.FB || !AUTH.user) return;
+  try { await fetchLiga(code); if ($ov.hidden && tab === 'home') render(); } catch (e) { }
+}
+async function ligaMenu(noFetch) {
+  if (!window.FB || !AUTH.user) { LG.msg = 'Para jugar en ligas necesitás una cuenta.'; return ACT.gologin(); }
+  const mine = S.leagues || [];
+  if (LQ.cur && !mine.includes(LQ.cur)) LQ.cur = null;
+  if (LQ.cur === null && mine.length && !LQ.pending && !LQ.creating && !noFetch) LQ.cur = mine[0];
+  const head = `<div class="mtop"><button class="link" data-act="close">Cerrar</button><span class="eyebrow">Liga de amigos</span></div>`;
+  const tabs = mine.length ? `<div class="seg" role="group" aria-label="Mis ligas" style="flex-wrap:wrap">${mine.map(c => `<button data-act="lqsel" data-c="${c}" aria-pressed="${LQ.cur === c}">${esc(LQ.cache[c]?.name || c)}</button>`).join('')}${mine.length < 5 ? `<button data-act="lqnew" aria-pressed="${LQ.cur === null}">+ Otra</button>` : ''}</div>` : '';
+  const msg = LQ.msg ? `<div class="msg warn" role="status">${esc(LQ.msg)}</div>` : '';
+  if (!LQ.cur) {
+    showOv(`${head}<div><h1 class="h1">Liga de amigos</h1><p class="lead">Cada semana, de lunes a domingo, gana el que suma más puntos: <b>1 punto por cada respuesta correcta</b> (partidos, entrenamientos, repasos y desafíos) y <b>3 por cada partido ganado</b>.</p></div>${tabs}${msg}
+      <div class="panel edform"><h2 class="h2" style="font-size:26px">Unirme con un código</h2>
+        <div class="field"><label for="lq-code">Código de 6 letras que te pasaron</label><input class="sm" id="lq-code" maxlength="6" autocapitalize="characters" autocomplete="off" placeholder="Ej.: KX7P2M" value="${esc(LQ.pending || '')}" style="text-transform:uppercase;letter-spacing:.2em"></div>
+        <button class="btn pink" data-act="lqjoin" ${LQ.busy ? 'disabled' : ''}>Unirme</button></div>
+      <div class="panel edform"><h2 class="h2" style="font-size:26px">Crear una liga nueva</h2>
+        <div class="field"><label for="lq-name">Nombre de la liga</label><input class="sm" id="lq-name" maxlength="24" placeholder="Ej.: Los de 6° B"></div>
+        <button class="btn" data-act="lqcreate" ${LQ.busy ? 'disabled' : ''}>Crear liga</button></div>`, '', true);
+    return;
+  }
+  const code = LQ.cur;
+  if (!noFetch || !LQ.cache[code]) {
+    if (!LQ.cache[code]) showOv(`${head}<div class="welcome"><p class="h2">Cargando la liga…</p></div>`);
+    try { const L = await fetchLiga(code); if (!L) { S.leagues = mine.filter(c => c !== code); save(); LQ.msg = 'Esa liga ya no existe.'; LQ.cur = null; return ligaMenu(true); } }
+    catch (e) { if (!LQ.cache[code]) { LQ.msg = 'No se pudo cargar la liga: ' + fbErr(e); LQ.cur = null; return ligaMenu(true); } }
+  }
+  const L = LQ.cache[code];
+  showOv(`${head}${tabs}
+    <div><div class="eyebrow">Código ${code} · ${L.members.length} ${L.members.length === 1 ? 'jugador' : 'jugadores'}</div><h1 class="h1">${esc(L.name)}</h1></div>${msg}
+    ${champHTML(L)}
+    <div class="seg" role="group" aria-label="Ranking"><button data-act="lqview" data-v="week" aria-pressed="${LQ.view === 'week'}">Esta semana</button><button data-act="lqview" data-v="total" aria-pressed="${LQ.view === 'total'}">Total</button></div>
+    <p class="muted" style="font-size:13px;font-weight:600;margin-top:-6px">${LQ.view === 'week' ? 'Se reinicia el lunes. 1 punto por respuesta correcta y 3 por partido ganado.' : 'Todos los puntos desde que empezaron a jugar.'}</p>
+    <div class="rank">${rankRows(L, LQ.view)}</div>
+    <div class="panel edform"><h2 class="h2" style="font-size:24px">Invitar amigos</h2>
+      <p class="muted" style="font-weight:600">Mandales este mensaje por WhatsApp. Con el link entran directo a la liga.</p>
+      <div class="field"><textarea id="lq-share" readonly style="min-height:130px">${esc(ligaInvite(code))}</textarea></div>
+      <button class="btn pink" data-act="lqcopy">Copiar invitación</button></div>
+    <button class="link" data-act="lqleave">${LQ.armLeave ? 'Tocá otra vez para salir de esta liga' : 'Salir de esta liga'}</button>`, '', true);
+}
+async function ligaCreate() {
+  const name = (document.getElementById('lq-name')?.value || '').trim().slice(0, 24);
+  if (name.length < 3) { LQ.msg = 'Poné un nombre de al menos 3 letras.'; return ligaMenu(true); }
+  if ((S.leagues || []).length >= 5) { LQ.msg = 'Podés estar en 5 ligas como máximo.'; return ligaMenu(true); }
+  LQ.busy = true; LQ.msg = ''; ligaMenu(true);
+  try {
+    let code = newCode();
+    for (let i = 0; i < 4 && (await FB.get('leagues/' + code)).exists(); i++) code = newCode();
+    await FB.set('leagues/' + code, { name, owner: AUTH.user.uid, ownerName: AUTH.username }, false);
+    await FB.set(`leagues/${code}/members/${AUTH.user.uid}`, memberDoc());
+    S.leagues = [...(S.leagues || []), code]; save(); LQ.cur = code; LQ.busy = false;
+    toast(`¡Liga creada! Código ${code}. Ahora invitá a tus amigos.`); AU.coin(); confetti(undefined, 60);
+    ligaMenu();
+  } catch (e) { LQ.busy = false; LQ.msg = 'No se pudo crear la liga: ' + fbErr(e); ligaMenu(true); }
+}
+async function ligaJoin() {
+  const code = (document.getElementById('lq-code')?.value || '').trim().toUpperCase();
+  if (!/^[A-Z0-9]{6}$/.test(code)) { LQ.msg = 'El código tiene 6 letras o números.'; return ligaMenu(true); }
+  if ((S.leagues || []).includes(code)) { LQ.pending = null; LQ.cur = code; return ligaMenu(); }
+  if ((S.leagues || []).length >= 5) { LQ.msg = 'Podés estar en 5 ligas como máximo. Salí de alguna para sumarte a otra.'; return ligaMenu(true); }
+  LQ.busy = true; LQ.msg = ''; ligaMenu(true);
+  try {
+    const ld = await FB.get('leagues/' + code);
+    if (!ld.exists()) { LQ.busy = false; LQ.msg = `No existe ninguna liga con el código ${code}. Revisá que esté bien escrito.`; return ligaMenu(true); }
+    await FB.set(`leagues/${code}/members/${AUTH.user.uid}`, memberDoc());
+    S.leagues = [...(S.leagues || []), code]; save(); LQ.pending = null; LQ.cur = code; LQ.busy = false;
+    try { history.replaceState(null, '', location.pathname); } catch (e) { }
+    toast(`¡Te sumaste a ${ld.data().name}!`); AU.coin(); confetti(undefined, 60);
+    ligaMenu();
+  } catch (e) { LQ.busy = false; LQ.msg = 'No se pudo entrar a la liga: ' + fbErr(e); ligaMenu(true); }
+}
+async function ligaLeave() {
+  if (!LQ.armLeave) { LQ.armLeave = true; return ligaMenu(true); }
+  const code = LQ.cur; LQ.armLeave = false;
+  try { await FB.del(`leagues/${code}/members/${AUTH.user.uid}`); } catch (e) { }
+  S.leagues = (S.leagues || []).filter(c => c !== code); save(); delete LQ.cache[code]; LQ.cur = null;
+  toast('Saliste de la liga.'); ligaMenu(true);
+}
+
 /* panel del administrador: jugadores e informes */
 let PLAYERS_CACHE = [];
 async function profePlayers() {
@@ -2489,7 +2641,7 @@ intro();
 // Firebase: proyecto golazo-33a4b. Esta configuración es pública; lo que protege los datos son las reglas de firestore.rules.
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, getDocs, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getFirestore, doc, getDoc, setDoc, getDocs, deleteDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 const app = initializeApp({
   apiKey: 'AIzaSyD6Kiq_IIk0-kZIHFt3s1THv0U-yi0bwtc',
   authDomain: 'golazo-33a4b.firebaseapp.com',
@@ -2507,6 +2659,7 @@ window.FB = {
   get: path => getDoc(doc(db, path)),
   set: (path, data, merge = true) => setDoc(doc(db, path), { ...data, updatedAt: serverTimestamp() }, { merge }),
   list: path => getDocs(collection(db, path)),
+  del: path => deleteDoc(doc(db, path)),
 };
 dispatchEvent(new Event('fb-ready'));
 </script>
