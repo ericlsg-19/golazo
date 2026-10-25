@@ -451,7 +451,7 @@ body.ovopen .top,body.ovopen main.app,body.ovopen .tabs{visibility:hidden}
 .lvlpick button{display:flex;align-items:center;gap:10px;text-align:left;padding:8px 12px;background:rgba(255,255,255,.06);border:0;box-shadow:inset 0 0 0 2px var(--line);cursor:pointer;font-weight:700;line-height:1.15}
 .lvlpick button:hover{box-shadow:inset 0 0 0 2px var(--acc)}
 .lvlpick .crest{width:30px;height:35px;flex:none}
-.codeline{font-family:var(--display);font-weight:800;font-size:clamp(22px,6vw,34px);letter-spacing:.06em;word-break:break-all;padding:10px 14px;background:rgba(0,0,0,.3);border-left:3px solid var(--acc);text-align:left}
+.codeline{font-family:var(--display);font-weight:800;font-size:clamp(22px,5vw,30px);letter-spacing:.06em;word-break:break-all;padding:10px 14px;background:rgba(0,0,0,.3);border-left:3px solid var(--acc);text-align:left}
 .vsres{display:flex;align-items:center;justify-content:center;gap:18px;flex-wrap:wrap}
 .vsres div{text-align:center}.vsres b{display:block;font-family:var(--display);font-weight:800;font-size:64px;line-height:1}.vsres span{font-weight:800;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 
@@ -1476,7 +1476,7 @@ function viewBoard() {
    OVERLAYS
    ========================================================= */
 function showOv(html, mode = '', wide = false) { $ov.hidden = false; $ov.className = mode; $ov.innerHTML = `<div class="ov-in ${wide ? 'wide' : ''}">${html}</div>`; document.body.style.overflow = 'hidden'; document.body.classList.add('ovopen'); }
-function hideOv() { $ov.hidden = true; $ov.innerHTML = ''; $ov.className = ''; document.body.style.overflow = ''; document.body.classList.remove('ovopen'); if (typeof LQ !== 'undefined' && LQ.pending && AUTH.user && S.started && !LQ.shown && !(S.leagues || []).includes(LQ.pending)) { LQ.shown = true; setTimeout(() => ACT.liga(), 400); } AU.ambient(false); if (TTS) try { speechSynthesis.cancel(); } catch (e) { } if (STD.mode !== 'menu') stdMode('menu'); render(); }
+function hideOv() { $ov.hidden = true; $ov.innerHTML = ''; $ov.className = ''; document.body.style.overflow = ''; document.body.classList.remove('ovopen'); if (typeof LQ !== 'undefined' && LQ.pending && AUTH.user && S.started && !LQ.shown && !(S.leagues || []).includes(LQ.pending)) { LQ.shown = true; setTimeout(() => ACT.liga(), 400); } else if (typeof CH !== 'undefined' && CH.pending && S.started && !CH.shown) { setTimeout(() => { if ($ov.hidden && !CH.shown) { CH.shown = true; CH.msg = ''; chalMenu(); } }, 500); } AU.ambient(false); if (TTS) try { speechSynthesis.cancel(); } catch (e) { } if (STD.mode !== 'menu') stdMode('menu'); render(); }
 
 /* ---------- intro ---------- */
 let introTimers = [];
@@ -1980,18 +1980,25 @@ function tutorialRender() {
 function tutDone() { S.tut = true; save(); startLevel(TUT.lvl, true); }
 
 /* ---------- desafíos entre amigos ---------- */
-const CH = { msg: '', share: '' };
+const CH = { msg: '', share: '', pending: (() => { const m = decodeURIComponent(location.hash).match(/^#reto-([A-Za-z0-9_-]+)$/); return m ? 'GOL-' + m[1] : null; })() };
 function seededRandom(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function genSeeded(L, seed) { const orig = Math.random; Math.random = seededRandom(seed); try { return L.gen(); } finally { Math.random = orig; } }
-const chalEncode = o => 'GOL-' + b64e(JSON.stringify(o));
-function chalDecode(str) { try { const m = String(str).match(/GOL-([A-Za-z0-9_-]+)/); if (!m) return null; const o = JSON.parse(b64d(m[1])); return o && LEVELS[o.l - 1] && Number.isFinite(o.s) ? o : null; } catch (e) { return null; } }
+// código corto y legible: GOL-<fecha>-<semilla>-<goles>-<NOMBRE>, por ejemplo GOL-1-I6QW8B-8-El_Profesor
+const chalName = n => String(n || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().replace(/\s+/g, '_').replace(/[^A-Za-z0-9_]/g, '').slice(0, 16);
+const chalEncode = o => `GOL-${o.l}-${(o.s >>> 0).toString(36).toUpperCase()}-${o.sc}${chalName(o.n) ? '-' + chalName(o.n) : ''}`;
+function chalDecode(str) {
+  const k = String(str).match(/GOL-(\d{1,2})-([0-9A-Za-z]{1,7})-(\d{1,2})(?:-([A-Za-z0-9_]{1,16}))?(?![A-Za-z0-9])/);
+  if (k) { const l = +k[1], o = { l, s: parseInt(k[2], 36), sc: +k[3], n: k[4] ? k[4].replace(/_/g, ' ') : 'Tu amigo' }; return LEVELS[l - 1] && Number.isFinite(o.s) ? o : null; }
+  return chalDecodeOld(str);
+}
+function chalDecodeOld(str) { try { const m = String(str).match(/GOL-([A-Za-z0-9_-]+)/); if (!m) return null; const o = JSON.parse(b64d(m[1])); return o && LEVELS[o.l - 1] && Number.isFinite(o.s) ? o : null; } catch (e) { return null; } }
 function chalMenu() {
   const open = LEVELS.filter(l => unlocked(l.id));
   showOv(`<div class="mtop"><button class="link" data-act="close">Cerrar</button><span class="eyebrow">Desafíos</span></div>
     <div><h1 class="h1">Desafío a un amigo</h1><p class="lead">Elegí una fecha, jugala y mandale el código a un amigo por WhatsApp. Él juega exactamente las mismas preguntas y comparan quién hizo más goles.</p></div>
     ${CH.msg ? `<div class="msg warn" role="status">${esc(CH.msg)}</div>` : ''}
     <div class="panel edform"><h2 class="h2" style="font-size:26px">Aceptar un desafío</h2>
-      <div class="field"><label for="ch-in">Código que te mandaron</label><input class="sm" id="ch-in" placeholder="GOL-..." autocomplete="off"></div>
+      <div class="field"><label for="ch-in">Código que te mandaron</label><input class="sm" id="ch-in" placeholder="GOL-..." autocomplete="off" value="${esc(CH.pending || '')}"></div>
       <button class="btn pink" data-act="chalgo">Jugar desafío</button></div>
     <div class="panel edform"><h2 class="h2" style="font-size:26px">Crear un desafío</h2>
       <div class="lvlpick">${open.map(l => `<button data-act="chalnew" data-id="${l.id}">${crest(l.rival, l.c)}<span>Fecha ${l.id}<br><span class="muted" style="font-size:13px">${esc(l.en)}</span></span></button>`).join('')}</div></div>`);
@@ -2006,6 +2013,7 @@ function acceptChal() {
   const o = chalDecode(document.getElementById('ch-in')?.value || '');
   if (!o) { CH.msg = 'Ese código no funciona. Copialo completo, desde GOL- hasta el final.'; return chalMenu(); }
   if (LEVELS[o.l - 1].soon) { CH.msg = 'Ese desafío es de una fecha que en tu juego todavía no existe. Actualizá el juego y probá de nuevo.'; return chalMenu(); }
+  CH.pending = null; try { if (/^#reto-/.test(location.hash)) history.replaceState(null, '', location.pathname); } catch (e) { }
   startChal(o.l, o.s, o);
 }
 function endChal() {
@@ -2013,7 +2021,7 @@ function endChal() {
   const coins = me * 5; S.coins += coins; save(); AU.ambient(false); AU.whistle(3);
   if (!c.from) {
     const code = chalEncode({ l: c.l, s: c.s, n: clubName().slice(0, 24), sc: me, t: n });
-    CH.share = `⚽ ¡Te desafío en Golazo English! Jugué la Fecha ${c.l} (${L.en}) y metí ${me} de ${n} goles. ¿Me ganás?\n1) Abrí el juego: ${GAME_URL}\n2) Tocá “Desafío a un amigo” y pegá este código:\n${code}`;
+    CH.share = `⚽ ¡Te desafío en Golazo English! Jugué la Fecha ${c.l} (${L.en}) y metí ${me} de ${n} goles. ¿Me ganás?\nTocá este link y jugá las mismas preguntas:\n${GAME_URL}#reto-${code.slice(4)}\n(Si no se abre solo, en el juego tocá “Desafío a un amigo” y poné el código ${code})`;
     if (me) confetti(undefined, 80);
     showOv(`<div class="result"><div class="eyebrow">Desafío listo · Fecha ${c.l}</div><h2>${me} de ${n}</h2>
       <p style="font-weight:700;max-width:44ch">Mandale este mensaje a tu amigo. Va a jugar exactamente las mismas preguntas.</p>
