@@ -151,7 +151,7 @@ main.app{position:relative;z-index:1;max-width:1120px;margin:0 auto;padding-left
 .pc-pos{font-family:var(--display);font-weight:700;font-size:11.5cqw;line-height:1}
 .pc-top .flag{width:15cqw;box-shadow:0 0 0 .5cqw rgba(0,0,0,.25)}
 .pc-av{position:absolute;right:1cqw;top:7cqw;width:72cqw;height:auto;z-index:2}
-.pc-name{position:absolute;left:0;right:0;top:66cqw;z-index:3;text-align:center;font-family:var(--display);font-weight:800;font-size:14cqw;line-height:1;text-transform:uppercase;padding:0 8cqw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc-name{position:absolute;left:7cqw;right:7cqw;top:65cqw;z-index:3;text-align:center;font-family:var(--display);font-weight:800;font-size:min(14cqw,calc(140cqw / var(--n,10)));line-height:1;text-transform:uppercase;padding:1.6cqw 5cqw .8cqw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#FFFFFF;background:rgba(8,12,28,.72);text-shadow:0 .4cqw .8cqw rgba(0,0,0,.5);clip-path:polygon(3cqw 0,100% 0,calc(100% - 3cqw) 100%,0 100%)}
 .pc-line{position:absolute;left:16cqw;right:16cqw;top:81cqw;height:.6cqw;background:currentColor;opacity:.35;z-index:3}
 .pc-stats{position:absolute;left:13cqw;right:13cqw;top:84cqw;z-index:3;display:grid;grid-template-columns:1fr 1fr;column-gap:8cqw;row-gap:.8cqw;font-size:8.8cqw;line-height:1.1;font-variant-numeric:tabular-nums}
 .pc-stats span{display:flex;gap:1.6cqw;white-space:nowrap}
@@ -159,7 +159,7 @@ main.app{position:relative;z-index:1;max-width:1120px;margin:0 auto;padding-left
 .pc-stats i{font-style:normal;font-weight:700;opacity:.8}
 .pc-tier{position:absolute;left:0;right:0;top:120cqw;z-index:3;text-align:center;font-weight:800;font-size:5.6cqw;letter-spacing:.2em;text-transform:uppercase;opacity:.75}
 .pcard.mini .pc-stats,.pcard.mini .pc-tier,.pcard.mini .pc-line{display:none}
-.pcard.mini .pc-name{top:84cqw;font-size:17cqw;padding:0 6cqw}
+.pcard.mini .pc-name{top:83cqw;left:4cqw;right:4cqw;font-size:min(17cqw,calc(165cqw / var(--n,10)));padding:1.8cqw 4cqw 1cqw}
 .pcard.mini .pc-av{top:10cqw;width:76cqw;right:-2cqw}
 .t-oro{--cb:linear-gradient(160deg,#FFF3C4 0%,#F0C75E 34%,#C08F2E 72%,#8C6216 100%);--ci:#3A2905;--ce:#FFF6D2}
 .t-estrella{--cb:linear-gradient(160deg,#C9F6FF 0%,#4FA6FF 36%,#2343C9 72%,#121A66 100%);--ci:#FFFFFF;--ce:#9FE4FF}
@@ -813,7 +813,7 @@ function cardHTML(p, opts = {}) {
   return `<div class="pcard ${TIERS[t].cls} ${opts.mini ? 'mini' : ''} ${opts.shine || t === 'icono' || t === 'elite' ? 'shine' : ''}" aria-label="${esc(p.name)}, media ${ovr}"><div class="pc-in"><div class="pc-frame"></div>
     <div class="pc-top"><span class="pc-ovr">${ovr}</span><span class="pc-pos">${POS_ES[p.pos]}</span>${flag(p.c)}</div>
     ${avatar(p)}
-    <div class="pc-name">${esc(p.name)}</div><div class="pc-line"></div>
+    <div class="pc-name" style="--n:${p.name.length}">${esc(p.name)}</div><div class="pc-line"></div>
     ${opts.mini ? '' : `<div class="pc-stats">${stats(p, ovr).map(([l, v]) => `<span><b>${v}</b><i>${l}</i></span>`).join('')}</div><div class="pc-tier">${TIERS[t].name}</div>`}
   </div></div>`;
 }
