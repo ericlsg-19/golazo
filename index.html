@@ -321,6 +321,7 @@ body.ovopen .top,body.ovopen main.app,body.ovopen .tabs{visibility:hidden}
 .result .actions{display:flex;flex-direction:column;gap:10px;width:min(380px,100%)}
 .mstats{width:min(460px,100%);display:flex;flex-direction:column;gap:2px}
 .mstats div{display:grid;grid-template-columns:1fr auto;gap:12px;padding:9px 14px;background:rgba(255,255,255,.05);font-weight:700;text-align:left}
+.mstats.cmp div{grid-template-columns:1fr;gap:2px}.mstats.cmp b{font-family:var(--body);font-size:15px;line-height:1.3}
 .mstats b{font-family:var(--display);font-weight:800;font-size:22px;line-height:1}
 .reward{display:flex;align-items:center;gap:14px;padding:12px 16px;text-align:left;width:min(460px,100%)}
 .mvp{display:flex;align-items:center;gap:16px;width:min(460px,100%);padding:12px 16px;text-align:left}
@@ -1887,24 +1888,60 @@ const b64e = str => btoa(String.fromCharCode(...new TextEncoder().encode(str))).
 const b64d = str => new TextDecoder().decode(Uint8Array.from(atob(str.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)));
 function encodeSave() { const { mistakes, ...rest } = S; return 'GOLAZO1-' + b64e(JSON.stringify(rest)); }
 function backup() {
+  const d = BK.data, n = o => Object.keys(o.cards || {}).length, won = o => Object.values(o.levels || {}).filter(l => l.won).length;
   showOv(`<div class="mtop"><button class="link" data-act="close">Cerrar</button><span class="eyebrow">Copia de seguridad</span></div>
     <h1 class="h1">Tu código</h1>
-    <p class="lead">Tu progreso se guarda solo en este aparato. Copiá este código y guardalo en WhatsApp o en tus notas: si cambiás de celular o se borra el navegador, lo pegás abajo y recuperás tu club, tus cartas y tus monedas.</p>
+    <p class="lead">${AUTH.user ? 'Tu progreso ya se guarda en la nube, pero este código sirve como copia extra.' : 'Tu progreso se guarda solo en este aparato.'} Copiá este código y guardalo en WhatsApp o en tus notas: si cambiás de celular o se borra el navegador, lo pegás abajo y recuperás tu club, tus cartas y tus monedas.</p>
     <div class="panel edform"><div class="field"><label for="bk-out">Código de ${esc(clubName())}</label><textarea id="bk-out" readonly style="min-height:110px;font-family:ui-monospace,Menlo,monospace;font-size:12px">${esc(encodeSave())}</textarea></div>
       <button class="btn" data-act="bkcopy">Copiar código</button></div>
-    <h2 class="h2">Recuperar con un código</h2>
-    ${BK.msg ? `<div class="msg ${BK.arm ? 'warn' : ''}" role="status">${esc(BK.msg)}</div>` : ''}
-    <div class="panel edform"><div class="field"><label for="bk-in">Pegá acá tu código</label><textarea id="bk-in" style="min-height:90px;font-family:ui-monospace,Menlo,monospace;font-size:12px" placeholder="GOLAZO1-...">${esc(BK.pending || '')}</textarea></div>
-      <button class="btn ${BK.arm ? 'pink' : 'ghost'}" data-act="bkload">${BK.arm ? 'Sí, reemplazar el progreso de este aparato' : 'Cargar código'}</button></div>`);
+    <h2 class="h2">Traer progreso con un código</h2>
+    ${BK.msg ? `<div class="msg ${BK.warn ? 'warn' : ''}" role="status">${esc(BK.msg)}</div>` : ''}
+    <div class="panel edform"><div class="field"><label for="bk-in">Pegá acá el código</label><textarea id="bk-in" style="min-height:90px;font-family:ui-monospace,Menlo,monospace;font-size:12px" placeholder="GOLAZO1-...">${esc(BK.pending || '')}</textarea></div>
+      ${d ? `<div class="mstats cmp" style="width:100%">
+          <div><span>Código: <b style="font-size:inherit">${esc(d.club || 'Mi Club')}</b></span><b>${n(d)} cartas · ${won(d)} fechas · ${d.coins || 0} monedas</b></div>
+          <div><span>Ahora: <b style="font-size:inherit">${esc(clubName())}</b></span><b>${n(S)} cartas · ${won(S)} fechas · ${S.coins || 0} monedas</b></div></div>
+        <button class="btn" data-act="bkmerge">Combinar los dos</button>
+        <p class="muted" style="font-size:14px;font-weight:600">Combinar junta todo: las cartas de los dos (si una está repetida, queda la versión más mejorada), las fechas ganadas, las estrellas, los sobres y la suma de las monedas. Se queda con el nombre y el escudo del club de ahora.</p>
+        <button class="btn ${BK.arm ? 'pink' : 'ghost'} sm" data-act="bkload">${BK.arm ? 'Sí, borrar lo de ahora y usar solo el código' : 'Reemplazar todo por el código'}</button>`
+      : `<button class="btn ghost" data-act="bkcheck">Revisar código</button>`}</div>`);
 }
-function loadSave() {
+function readCode() {
   const raw = (document.getElementById('bk-in')?.value || '').trim(); BK.pending = raw;
   let data = null;
   try { const m = raw.match(/GOLAZO1-([A-Za-z0-9_-]+)/); if (m) data = JSON.parse(b64d(m[1])); } catch (e) { data = null; }
-  if (!data || typeof data !== 'object' || !data.cards) { BK.arm = false; BK.msg = 'Ese código no es válido. Fijate de copiarlo completo, desde GOLAZO1- hasta el final.'; return backup(); }
-  if (!BK.arm) { BK.arm = true; BK.msg = `Código de “${data.club || 'Mi Club'}” con ${Object.keys(data.cards).length} jugadores y ${data.coins || 0} monedas. Esto reemplaza el progreso de este aparato. Tocá el botón otra vez para confirmar.`; return backup(); }
+  if (!data || typeof data !== 'object' || !data.cards) { BK.data = null; BK.arm = false; BK.warn = true; BK.msg = 'Ese código no es válido. Fijate de copiarlo completo, desde GOLAZO1- hasta el final.'; backup(); return null; }
+  return data;
+}
+function checkSave() { const d = readCode(); if (!d) return; BK.data = d; BK.arm = false; BK.warn = false; BK.msg = 'Código válido. Elegí si querés combinarlo con tu progreso de ahora o reemplazarlo.'; backup(); }
+function mergeSaves(a, b) {
+  const out = Object.assign(fresh(), a);
+  out.started = !!(a.started || b.started); out.tut = !!(a.tut || b.tut);
+  if (!a.club) { out.club = b.club || ''; out.colors = b.colors || out.colors; }
+  out.coins = (a.coins || 0) + (b.coins || 0);
+  out.packs = [...(a.packs || []), ...(b.packs || [])];
+  out.cards = { ...(b.cards || {}) };
+  for (const [id, c] of Object.entries(a.cards || {})) { const o = out.cards[id]; out.cards[id] = o ? { upg: Math.max(o.upg || 0, c.upg || 0), train: Math.max(o.train || 0, c.train || 0), seen: !!(o.seen && c.seen) } : c; }
+  out.levels = { ...(b.levels || {}) };
+  for (const [id, l] of Object.entries(a.levels || {})) { const o = out.levels[id]; out.levels[id] = o ? { won: !!(o.won || l.won), stars: Math.max(o.stars || 0, l.stars || 0) } : l; }
+  out.claimed = { ...(b.claimed || {}), ...(a.claimed || {}) };
+  out.stats = {};
+  for (const src of [a.stats || {}, b.stats || {}]) for (const [id, x] of Object.entries(src)) { const o = out.stats[id] || (out.stats[id] = { ok: 0, n: 0 }); o.ok += x.ok || 0; o.n += x.n || 0; }
+  out.days = uniq([...(a.days || []), ...(b.days || [])]).sort().slice(-90);
+  out.listens = (a.listens || 0) + (b.listens || 0); out.answered = (a.answered || 0) + (b.answered || 0);
+  const seen = new Set(); out.mistakes = [...(a.mistakes || []), ...(b.mistakes || [])].filter(m => m && !seen.has(m.k) && seen.add(m.k)).slice(-30);
+  return out;
+}
+function mergeSave() {
+  const d = readCode(); if (!d) return;
+  S = mergeSaves(S, d); save();
+  BK.data = null; BK.arm = false; BK.msg = ''; BK.pending = ''; hideOv();
+  toast(`¡Listo! Se combinó todo: ahora tenés ${Object.keys(S.cards).length} cartas y ${S.coins} monedas.`); AU.coin(); confetti(undefined, 80);
+}
+function loadSave() {
+  const data = readCode(); if (!data) return;
+  if (!BK.arm) { BK.data = data; BK.arm = true; BK.warn = true; BK.msg = 'Ojo: reemplazar borra el progreso de ahora y deja solo el del código. Tocá el botón rosa para confirmar, o usá “Combinar los dos”.'; return backup(); }
   S = Object.assign(fresh(), data, { mistakes: S.mistakes || [] }); save();
-  BK.arm = false; BK.msg = ''; BK.pending = ''; hideOv(); toast(`¡Listo! Recuperaste ${clubName()}.`); AU.coin();
+  BK.data = null; BK.arm = false; BK.msg = ''; BK.pending = ''; hideOv(); toast(`¡Listo! Recuperaste ${clubName()}.`); AU.coin();
 }
 
 /* ---------- tutorial de la primera partida ---------- */
@@ -2252,9 +2289,11 @@ const ACT = {
   review: () => startReview(),
   report: () => report(),
   repcopy: () => copyText(reportText(), 'Informe copiado. Pegalo en WhatsApp.'),
-  backup: () => { BK.arm = false; BK.msg = ''; backup(); },
+  backup: () => { BK.arm = false; BK.msg = ''; BK.data = null; BK.pending = ''; backup(); },
   bkcopy: () => copyText(encodeSave(), 'Código copiado. Guardalo en WhatsApp o en tus notas.', 'bk-out'),
   bkload: () => loadSave(),
+  bkcheck: () => checkSave(),
+  bkmerge: () => mergeSave(),
   tutnext: b => { TUT.i++; TUT.i >= TUT_SLIDES.length ? tutDone() : tutorialRender(); },
   tutskip: () => tutDone(),
   chal: () => { CH.msg = ''; chalMenu(); },
