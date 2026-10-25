@@ -2024,8 +2024,7 @@ function endChal() {
     CH.share = `⚽ ¡Te desafío en Golazo English! Jugué la Fecha ${c.l} (${L.en}) y metí ${me} de ${n} goles. ¿Me ganás?\nTocá este link y jugá las mismas preguntas:\n${GAME_URL}#reto-${code.slice(4)}\n(Si no se abre solo, en el juego tocá “Desafío a un amigo” y poné el código ${code})`;
     if (me) confetti(undefined, 80);
     showOv(`<div class="result"><div class="eyebrow">Desafío listo · Fecha ${c.l}</div><h2>${me} de ${n}</h2>
-      <p style="font-weight:700;max-width:44ch">Mandale este mensaje a tu amigo. Va a jugar exactamente las mismas preguntas.</p>
-      <div class="codeline">${esc(code)}</div>
+      <p style="font-weight:700;max-width:44ch">Tocá “Copiar mensaje” y mandáselo a tu amigo por WhatsApp. Con el link juega exactamente las mismas preguntas.</p>
       <div class="field" style="width:min(460px,100%)"><label for="ch-share">Mensaje para WhatsApp</label><textarea id="ch-share" readonly style="min-height:150px">${esc(CH.share)}</textarea></div>
       <div class="actions"><button class="btn pink" data-act="chalcopy">Copiar mensaje</button><button class="btn ghost" data-act="close">Volver al menú</button></div></div>`);
     return;
