@@ -1,0 +1,37 @@
+rules_version = '2';
+
+// Reglas de seguridad de Golazo English.
+// Cada chico solo puede leer y escribir su propio progreso.
+// El administrador (usuario "eric") puede ver a todos los jugadores y publicar unidades nuevas.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() && request.auth.token.email == 'eric@golazo-english.app';
+    }
+
+    // Progreso de cada jugador: players/{uid}
+    match /players/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.state is string
+        && request.resource.data.state.size() < 500000;
+      allow delete: if isAdmin();
+    }
+
+    // Unidades nuevas del colegio: config/units (todos leen, solo el administrador escribe)
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Todo lo demás, cerrado.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

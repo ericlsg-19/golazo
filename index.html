@@ -695,7 +695,10 @@ function avatar(p, cls = 'pc-av') {
 /* ---------------- estado ---------------- */
 const fresh = () => ({ club: '', colors: ['#1EE3B4', '#0C1330'], coins: 0, packs: [], cards: {}, levels: {}, voice: true, sound: true, started: false, claimed: {}, listens: 0, tut: false, stats: {}, mistakes: [], days: [], answered: 0 });
 function load() { try { const r = localStorage.getItem(STORE); if (r) return Object.assign(fresh(), JSON.parse(r)); } catch (e) { } return fresh(); }
-function save() { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) { } }
+// cuenta en la nube (Firebase): se completa cuando carga el módulo de Firebase al final de la página
+var AUTH = { ready: false, user: null, username: '', mode: (() => { try { return localStorage.getItem('golazo-mode') || 'cloud'; } catch (e) { return 'cloud'; } })(), waiting: false, keepLocal: false, armOut: false };
+const ADMIN_USER = 'eric';
+function save() { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) { } if (typeof cloudSave === 'function') cloudSave(); }
 let S = load();
 let tab = 'home', teamView = 'xi';
 const TRAIN_MAX = 6;
@@ -1057,7 +1060,8 @@ const rivalOvr = L => 66 + L.id * 2;
 const nextLevel = () => LEVELS.find(l => unlocked(l.id) && !S.levels[l.id]?.won);
 
 /* ---------------- unidades nuevas (las agrega el Modo profe) ---------------- */
-const UNITS = (() => { try { return JSON.parse(document.getElementById('units-data').textContent).units || []; } catch (e) { return []; } })();
+let UNITS = (() => { try { return JSON.parse(document.getElementById('units-data').textContent).units || []; } catch (e) { return []; } })();
+if (!UNITS.length) try { const c = JSON.parse(localStorage.getItem('golazo-units') || 'null'); if (Array.isArray(c)) UNITS = c; } catch (e) { }
 const RIVAL_POOL = [['Present Rovers', ['#5CC8FF', '#102A5C']], ['Grammar United', ['#E63946', '#1D1D3B']], ['Vocab City', ['#2EE07A', '#0B3D2E']], ['Spelling Athletic', ['#FFC93C', '#5A1A8C']],
   ['Tense Town', ['#FF7F11', '#1A1A1A']], ['Inter Lingo', ['#3D5AFE', '#000000']], ['Real Verbos', ['#FFFFFF', '#6A1B9A']], ['Dynamo Dictionary', ['#00B4D8', '#FFFFFF']],
   ['Borussia Book', ['#FFD60A', '#111111']], ['Olympique Oral', ['#FF3D8B', '#0C1330']], ['Phrase Wanderers', ['#F4A261', '#264653']], ['Sporting Sentence', ['#06D6A0', '#FFFFFF']]];
@@ -1076,7 +1080,8 @@ function buildQ(q) {
   });
 }
 const genCustom = u => shuffle(u.questions || []).slice(0, 8).map(buildQ);
-(function addUnits() {
+function applyUnits(list) {
+  UNITS = list; LEVELS.splice(12); LEAGUES.splice(3);
   UNITS.forEach((u, i) => {
     let li = LEAGUES.findIndex(l => l.name === u.season);
     if (li < 0) { LEAGUES.push({ name: u.season || 'Temporada 2', es: 'Lo nuevo del colegio' }); li = LEAGUES.length - 1; }
@@ -1085,7 +1090,8 @@ const genCustom = u => shuffle(u.questions || []).slice(0, 8).map(buildQ);
     LEVELS.push({ id: LEVELS.length + 1, rival, c, en: u.en, es: u.es, league: li, custom: true, unit: u, soon: !u.ready || (u.questions || []).length < 4,
       n: Math.min(8, (u.questions || []).length), reward: lastOfSeason ? 'elite' : 'estrella', gen: () => genCustom(u) });
   });
-})();
+}
+applyUnits(UNITS);
 const playable = () => LEVELS.filter(l => !l.soon);
 
 /* ---------------- once ideal y química ---------------- */
@@ -1477,7 +1483,7 @@ function introRun() {
 function introEnd() {
   introTimers.forEach(clearTimeout); introTimers = []; STD.lights = 4;
   hideOv();
-  if (!S.started) welcome();
+  afterIntro();
 }
 
 /* ---------- bienvenida (crear club) ---------- */
@@ -1498,6 +1504,8 @@ let resetArm = false;
 function settings() {
   showOv(`<div class="mtop"><button class="link" data-act="close">Cerrar</button><span class="eyebrow">Ajustes</span></div>
     <h1 class="h1">Ajustes</h1>
+    ${window.FB ? (AUTH.user ? `<div class="msg">Conectado como <b>${esc(AUTH.username)}</b>. Tu progreso se guarda en la nube.</div><button class="btn ghost" data-act="logout">${AUTH.armOut ? 'Tocá otra vez para cerrar sesión' : 'Cerrar sesión'}</button>`
+      : `<div class="msg warn">Estás jugando sin cuenta: el progreso queda solo en este aparato.</div><button class="btn" data-act="gologin">Entrar o crear cuenta</button>`) : ''}
     <button class="toggle" data-act="tsound" aria-pressed="${S.sound}">Sonidos del estadio<i></i></button>
     <button class="toggle" data-act="tvoice" aria-pressed="${S.voice}" ${TTS ? '' : 'disabled'}>Voz en inglés ${TTS ? '' : '(no disponible en este navegador)'}<i></i></button>
     <button class="btn" data-act="report">Informe para la familia</button>
@@ -1780,7 +1788,7 @@ function tearPack() {
 /* =========================================================
    APRENDIZAJE: estadísticas, errores, informe, copia de seguridad, tutorial, desafíos
    ========================================================= */
-const GAME_URL = 'https://claude.ai/artifact/SXP5RTrxk3BVtETw9eedqw';
+const GAME_URL = /github\.io$/.test(location.hostname) ? location.origin + location.pathname : 'https://claude.ai/artifact/SXP5RTrxk3BVtETw9eedqw';
 const today = () => new Date().toISOString().slice(0, 10);
 function toast(msg) { document.querySelectorAll('.toast').forEach(t => t.remove()); const t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
 function copyText(text, okMsg, fallbackId) {
@@ -2016,6 +2024,7 @@ function profeList() {
         <div class="ed-btns"><button class="btn ghost" data-act="pmove" data-i="${i}" data-d="-1" ${i ? '' : 'disabled'} aria-label="Subir">↑</button><button class="btn ghost" data-act="pmove" data-i="${i}" data-d="1" ${i < ED.units.length - 1 ? '' : 'disabled'} aria-label="Bajar">↓</button>
         <button class="btn" data-act="pedit" data-i="${i}">Editar</button><button class="btn ${ED.armDel === i ? 'pink' : 'ghost'}" data-act="pdel" data-i="${i}">${ED.armDel === i ? '¿Borrar?' : 'Borrar'}</button></div></div>`).join('')
       : '<div class="panel empty">Todavía no hay unidades nuevas. Creá la primera con el tema que tu hermano esté por ver.</div>'}
+    ${window.FB && AUTH.username === ADMIN_USER ? '<button class="btn" data-act="pplayers">Ver jugadores e informes</button>' : ''}
     <div class="row"><button class="btn ghost" data-act="pnew">+ Nueva unidad</button>
       <button class="btn gold" data-act="ppublish" ${ED.dirty && !ED.busy ? '' : 'disabled'}>${ED.busy ? 'Publicando…' : 'Guardar y publicar'}</button></div>
     <p class="muted" style="font-size:14px;font-weight:600">Al publicar, el juego se actualiza para todos los que tengan el link. El progreso, las cartas y las monedas de tu hermano no se pierden.</p>`);
@@ -2135,10 +2144,21 @@ En las de opción múltiple, la pregunta tiene ___ donde va la respuesta, y las 
 }
 async function profePublish() {
   if (!ED || ED.busy) return;
-  if (!ART) { ED.msg = 'Publicar no está disponible desde acá. Abrí el juego en claude.ai con tu cuenta.'; return profe(); }
+  const cloudAdmin = !!(window.FB && AUTH.user && AUTH.username === ADMIN_USER);
+  if (!ART && !cloudAdmin) { ED.msg = 'Publicar no está disponible desde acá. Entrá con la cuenta de administrador.'; return profe(); }
   const noTitle = ED.units.findIndex(u => !(u.en || '').trim());
   if (noTitle >= 0) { ED.msg = `La unidad de la fecha ${13 + noTitle} necesita un tema en inglés.`; return profe(); }
   ED.units.forEach(u => { if (u.ready && u.questions.length < 4) u.ready = false; });
+  if (cloudAdmin) {
+    ED.busy = true; ED.msg = 'Guardando en la nube…'; profe(); stashDraft();
+    try {
+      await FB.set('config/units', { units: ED.units }, false);
+      try { sessionStorage.removeItem(DRAFT_KEY); localStorage.setItem('golazo-units', JSON.stringify(ED.units)); } catch (e) { }
+      applyUnits(JSON.parse(JSON.stringify(ED.units)));
+      ED.busy = false; ED.dirty = false; ED.msg = '¡Publicado! Los chicos ven las unidades nuevas la próxima vez que abran el juego.';
+    } catch (e) { ED.busy = false; ED.msg = `No se pudo guardar (${fbErr(e)}). Tus cambios siguen acá.`; }
+    return profe();
+  }
   ED.busy = true; ED.msg = 'Publicando… el juego se va a recargar solo.'; profe();
   stashDraft();
   try {
@@ -2218,6 +2238,15 @@ const ACT = {
     if (!S.started) { S.started = true; S.coins += 100; save(); renderTop(); openPack('bienvenida'); } else { save(); hideOv(); }
   },
   introgo: () => introRun(),
+  lgtab: b => { LG.tab = b.dataset.t; LG.msg = ''; loginScreen(); },
+  lgkeep: () => { LG.keep = !LG.keep; loginScreen(); },
+  lgin: () => doLogin(),
+  lgup: () => doSignup(),
+  lglocal: () => { AUTH.mode = 'local'; try { localStorage.setItem('golazo-mode', 'local'); } catch (e) { } hideOv(); if (!S.started) welcome(); },
+  gologin: () => { AUTH.mode = 'cloud'; try { localStorage.removeItem('golazo-mode'); } catch (e) { } LG.tab = S.started ? 'up' : 'in'; LG.msg = ''; loginScreen(); },
+  logout: () => doLogout(),
+  pplayers: () => profePlayers(),
+  pplayer: b => profePlayerReport(b.dataset.uid),
   introskip: () => introEnd(),
   profe: () => { profe(); },
   review: () => startReview(),
@@ -2269,15 +2298,178 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.target.id === 'clubname') return ACT.start();
+  if (e.key === 'Enter' && /^lg-/.test(e.target.id || '')) return LG.tab === 'up' ? doSignup() : doLogin();
   if (!M || $ov.hidden) return;
   const q = curQ(); if (!q) return;
   if (q.type === 'mc' && !q.done && /^[1-4]$/.test(e.key)) { const b = $ov.querySelectorAll('.opt')[+e.key - 1]; if (b) b.click(); }
   if (e.key === 'Enter' && q.done) { const b = $ov.querySelector('[data-act=next]'); if (b) b.click(); }
 });
 
+/* =========================================================
+   CUENTAS Y NUBE (Firebase: login con usuario + PIN, progreso guardado)
+   ========================================================= */
+const LG = { tab: 'in', msg: '', keep: true, busy: false };
+const userEmail = u => `${u}@golazo-english.app`;
+const cleanUser = v => String(v || '').trim().toLowerCase();
+function fbErr(e) {
+  const c = (e && e.code) || '';
+  return ({
+    'auth/email-already-in-use': 'Ese usuario ya existe. Elegí otro o entrá con tu PIN.',
+    'auth/invalid-credential': 'Usuario o PIN incorrecto.', 'auth/wrong-password': 'Usuario o PIN incorrecto.', 'auth/user-not-found': 'Usuario o PIN incorrecto.', 'auth/invalid-login-credentials': 'Usuario o PIN incorrecto.',
+    'auth/too-many-requests': 'Demasiados intentos. Esperá unos minutos y probá de nuevo.',
+    'auth/network-request-failed': 'No hay conexión a internet.',
+    'auth/operation-not-allowed': 'El login todavía no está activado en Firebase.', 'auth/configuration-not-found': 'El login todavía no está activado en Firebase.',
+    'permission-denied': 'Firebase rechazó el acceso: faltan las reglas de seguridad.',
+    'unavailable': 'No hay conexión con la nube.',
+  })[c] || (c ? `error ${c}` : 'error desconocido');
+}
+function loginScreen() {
+  stdMode('menu');
+  const hasLocal = S.started && S.club;
+  showOv(`<div class="welcome" style="min-height:80vh">
+    <div class="eyebrow">Golazo English</div><h1 class="h1">${LG.tab === 'up' ? 'Creá tu cuenta' : 'Entrá a tu club'}</h1>
+    <div class="seg" role="group" aria-label="Cuenta"><button data-act="lgtab" data-t="in" aria-pressed="${LG.tab === 'in'}">Entrar</button><button data-act="lgtab" data-t="up" aria-pressed="${LG.tab === 'up'}">Crear cuenta</button></div>
+    ${LG.msg ? `<div class="msg warn" role="status" style="width:min(380px,100%);text-align:left">${esc(LG.msg)}</div>` : ''}
+    <div class="field"><label for="lg-user">Usuario</label><input id="lg-user" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="16" placeholder="Ej.: crack10" value="${esc(LG.user || '')}">
+      ${LG.tab === 'up' ? '<small>Inventá uno: letras, números o _ (de 3 a 16). No uses tu nombre completo.</small>' : ''}</div>
+    <div class="field"><label for="lg-pin">PIN de 6 números</label><input id="lg-pin" type="password" inputmode="numeric" autocomplete="${LG.tab === 'up' ? 'new-password' : 'current-password'}" maxlength="6" placeholder="••••••"></div>
+    ${LG.tab === 'up' ? `<div class="field"><label for="lg-pin2">Repetí el PIN</label><input id="lg-pin2" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" placeholder="••••••"><small>Anotalo en un lugar seguro: lo vas a necesitar para entrar desde otro aparato.</small></div>
+      ${hasLocal ? `<button class="toggle" style="width:min(380px,100%)" data-act="lgkeep" aria-pressed="${LG.keep}">Usar el progreso de este aparato (${esc(S.club)})<i></i></button>` : ''}` : ''}
+    <button class="btn" data-act="${LG.tab === 'up' ? 'lgup' : 'lgin'}" ${LG.busy ? 'disabled' : ''}>${LG.busy ? 'Conectando…' : LG.tab === 'up' ? 'Crear cuenta' : 'Entrar'}</button>
+    <button class="link" data-act="lglocal">Jugar sin cuenta (el progreso queda solo en este aparato)</button>
+  </div>`);
+}
+function readLogin() {
+  LG.user = cleanUser(document.getElementById('lg-user')?.value);
+  return { u: LG.user, pin: (document.getElementById('lg-pin')?.value || '').trim(), pin2: (document.getElementById('lg-pin2')?.value || '').trim() };
+}
+async function doLogin() {
+  if (LG.busy || !window.FB) return;
+  const { u, pin } = readLogin();
+  if (!u || !/^\d{6}$/.test(pin)) { LG.msg = 'Escribí tu usuario y tu PIN de 6 números.'; return loginScreen(); }
+  LG.busy = true; LG.msg = ''; loginScreen();
+  try { AUTH.keepLocal = false; await FB.signIn(userEmail(u), pin); }
+  catch (e) { LG.busy = false; LG.msg = fbErr(e); loginScreen(); }
+}
+async function doSignup() {
+  if (LG.busy || !window.FB) return;
+  const { u, pin, pin2 } = readLogin();
+  if (!/^[a-z0-9_]{3,16}$/.test(u)) { LG.msg = 'El usuario tiene que tener de 3 a 16 letras, números o _ (sin espacios ni acentos).'; return loginScreen(); }
+  if (!/^\d{6}$/.test(pin)) { LG.msg = 'El PIN tiene que tener exactamente 6 números.'; return loginScreen(); }
+  if (pin !== pin2) { LG.msg = 'Los dos PIN no coinciden.'; return loginScreen(); }
+  LG.busy = true; LG.msg = ''; loginScreen();
+  try { AUTH.keepLocal = !!(LG.keep && S.started); await FB.signUp(userEmail(u), pin); }
+  catch (e) { LG.busy = false; LG.msg = fbErr(e); loginScreen(); }
+}
+async function onAuthChange(user) {
+  AUTH.ready = true; AUTH.user = user || null; AUTH.username = user && user.email ? user.email.split('@')[0] : '';
+  if (AUTH.username === ADMIN_USER) PROFE = true;
+  if (user) {
+    try {
+      const snap = await FB.get('players/' + user.uid);
+      if (snap.exists() && snap.data().state) S = Object.assign(fresh(), JSON.parse(snap.data().state));
+      else if (!AUTH.keepLocal) S = fresh();
+      try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) { }
+      cloudSave(true);
+    } catch (e) { toast('No se pudo leer tu progreso de la nube: ' + fbErr(e)); }
+    AUTH.keepLocal = false; LG.busy = false;
+    if (!$ov.hidden && $ov.querySelector('[data-act=lgin],[data-act=lgup]')) { hideOv(); if (!S.started) welcome(); else toast(`¡Hola, ${AUTH.username}!`); }
+  }
+  render();
+  if (AUTH.waiting) { AUTH.waiting = false; afterIntro(); }
+}
+function afterIntro() {
+  if (!window.FB || AUTH.mode === 'local') { if (!S.started) welcome(); return; }
+  if (!AUTH.ready) { AUTH.waiting = true; showOv(`<div class="welcome"><div class="eyebrow">Golazo English</div><p class="h2">Conectando…</p></div>`); return; }
+  if (!AUTH.user) return loginScreen();
+  hideOv(); if (!S.started) welcome();
+}
+function summarize() {
+  const tot = Object.values(S.stats || {}).reduce((a, x) => ({ ok: a.ok + x.ok, n: a.n + x.n }), { ok: 0, n: 0 });
+  return { won: LEVELS.filter(l => S.levels[l.id]?.won).length, stars: totalStars(), answered: tot.n, pct: tot.n ? Math.round(tot.ok / tot.n * 100) : null,
+    mistakes: (S.mistakes || []).length, cards: Object.keys(S.cards || {}).length, lastSeen: new Date().toISOString().slice(0, 10) };
+}
+let cloudTimer = null;
+function cloudSave(now) {
+  if (!window.FB || !AUTH.user) return Promise.resolve();
+  clearTimeout(cloudTimer);
+  const go = () => FB.set('players/' + AUTH.user.uid, { username: AUTH.username, club: S.club || '', state: JSON.stringify(S), summary: summarize() }).catch(e => toast('No se pudo guardar en la nube: ' + fbErr(e)));
+  if (now) return go();
+  cloudTimer = setTimeout(go, 2500); return Promise.resolve();
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden && cloudTimer) cloudSave(true); });
+async function doLogout() {
+  if (!AUTH.armOut) { AUTH.armOut = true; return settings(); }
+  AUTH.armOut = false;
+  try { await cloudSave(true); await FB.signOut(); } catch (e) { }
+  try { localStorage.removeItem(STORE); } catch (e) { }
+  S = fresh(); LG.tab = 'in'; LG.user = ''; LG.msg = ''; render(); loginScreen();
+}
+async function loadCloudUnits() {
+  try {
+    const snap = await FB.get('config/units');
+    const list = snap.exists() && Array.isArray(snap.data().units) ? snap.data().units : [];
+    try { localStorage.setItem('golazo-units', JSON.stringify(list)); } catch (e) { }
+    if (JSON.stringify(list) !== JSON.stringify(UNITS)) { applyUnits(list); if ($ov.hidden) render(); }
+  } catch (e) { }
+}
+/* panel del administrador: jugadores e informes */
+let PLAYERS_CACHE = [];
+async function profePlayers() {
+  showOv(`<div class="welcome"><p class="h2">Cargando jugadores…</p></div>`);
+  try {
+    const qs = await FB.list('players');
+    PLAYERS_CACHE = qs.docs.map(d => ({ uid: d.id, ...d.data() })).sort((a, b) => String(b.summary?.lastSeen || '').localeCompare(String(a.summary?.lastSeen || '')));
+  } catch (e) { ED.msg = 'No se pudieron leer los jugadores: ' + fbErr(e); return profe(); }
+  showOv(`<div class="mtop"><button class="link" data-act="profe">← Modo profe</button><span class="eyebrow">Jugadores</span></div>
+    <h1 class="h1">Jugadores</h1><p class="lead">${PLAYERS_CACHE.length} ${PLAYERS_CACHE.length === 1 ? 'cuenta' : 'cuentas'}. Tocá una para ver su informe completo.</p>
+    ${PLAYERS_CACHE.map(x => { const m = x.summary || {}; return `<button class="panel ed-row" style="text-align:left;border:0;cursor:pointer;width:100%" data-act="pplayer" data-uid="${esc(x.uid)}">
+      <div style="min-width:0"><div class="eyebrow">${esc(x.username || '?')} · última vez ${esc(m.lastSeen || '–')}</div><h3>${esc(x.club || 'Sin club')}</h3>
+      <p>${m.won || 0} fechas ganadas · ${m.answered || 0} respuestas · ${m.pct == null ? '–' : m.pct + '% aciertos'} · ${m.mistakes || 0} errores para repasar · ${m.cards || 0} cartas</p></div>
+      <span class="btn sm ghost">Ver</span></button>`; }).join('') || '<div class="panel empty">Todavía no hay jugadores con cuenta.</div>'}`, '', true);
+}
+function profePlayerReport(uid) {
+  const x = PLAYERS_CACHE.find(p => p.uid === uid); if (!x) return;
+  const mine = S;
+  try { S = Object.assign(fresh(), JSON.parse(x.state || '{}')); report(); } finally { S = mine; }
+  const top = $ov.querySelector('.mtop'); if (top) top.innerHTML = `<button class="link" data-act="pplayers">← Jugadores</button><span class="eyebrow">Informe de ${esc(x.username)}</span>`;
+  const cp = $ov.querySelector('[data-act=repcopy]'); if (cp) cp.remove();
+}
+function fbBoot() {
+  FB.onAuth(onAuthChange);
+  loadCloudUnits();
+}
+if (window.FB) fbBoot(); else addEventListener('fb-ready', fbBoot, { once: true });
+setTimeout(() => { if (!window.FB && AUTH.waiting) { AUTH.waiting = false; toast('No se pudo conectar con la nube. Jugás sin cuenta por ahora.'); AUTH.mode = 'local'; afterIntro(); } }, 8000);
+
 stdResize(); requestAnimationFrame(stdLoop);
 render();
 intro();
+</script>
+<script type="module">
+// Firebase: proyecto golazo-33a4b. Esta configuración es pública; lo que protege los datos son las reglas de firestore.rules.
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, getDoc, setDoc, getDocs, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+const app = initializeApp({
+  apiKey: 'AIzaSyD6Kiq_IIk0-kZIHFt3s1THv0U-yi0bwtc',
+  authDomain: 'golazo-33a4b.firebaseapp.com',
+  projectId: 'golazo-33a4b',
+  storageBucket: 'golazo-33a4b.firebasestorage.app',
+  messagingSenderId: '491405706554',
+  appId: '1:491405706554:web:b2500f1d79eb2c9694bc03',
+});
+const auth = getAuth(app), db = getFirestore(app);
+window.FB = {
+  onAuth: cb => onAuthStateChanged(auth, cb),
+  signIn: (email, pass) => signInWithEmailAndPassword(auth, email, pass),
+  signUp: (email, pass) => createUserWithEmailAndPassword(auth, email, pass),
+  signOut: () => signOut(auth),
+  get: path => getDoc(doc(db, path)),
+  set: (path, data, merge = true) => setDoc(doc(db, path), { ...data, updatedAt: serverTimestamp() }, { merge }),
+  list: path => getDocs(collection(db, path)),
+};
+dispatchEvent(new Event('fb-ready'));
 </script>
 </body>
 </html>
