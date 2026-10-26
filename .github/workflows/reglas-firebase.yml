@@ -5,7 +5,7 @@ name: Publicar reglas de Firebase
 on:
   push:
     branches: [main]
-    paths: [firestore.rules, firebase.json]
+    paths: [firestore.rules, firebase.json, .github/workflows/reglas-firebase.yml]
   workflow_dispatch:
 
 jobs:
@@ -31,4 +31,10 @@ jobs:
       - name: Publicar reglas
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/cuenta-servicio.json
-        run: npx --yes firebase-tools@13.29.1 deploy --only firestore:rules --project golazo-33a4b --non-interactive
+        run: |
+          set -o pipefail
+          if ! npx --yes firebase-tools@13.29.1 deploy --only firestore:rules --project golazo-33a4b --non-interactive 2>&1 | tee salida.txt; then
+            # mostrar el error como anotación para poder leerlo desde la página del workflow
+            grep -iE "error|denied|permission|enable|api|forbidden|credential|not found" salida.txt | tail -n 8 | while IFS= read -r l; do echo "::error::$l"; done
+            exit 1
+          fi
