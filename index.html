@@ -2323,6 +2323,7 @@ const ACT = {
   logout: () => doLogout(),
   pplayers: () => profePlayers(),
   pplayer: b => profePlayerReport(b.dataset.uid),
+  pdelplayer: b => profeDeletePlayer(b.dataset.uid),
   liga: () => { LQ.msg = ''; ligaMenu(); },
   lqsel: b => { LQ.cur = b.dataset.c; LQ.armLeave = false; ligaMenu(); },
   lqview: b => { LQ.view = b.dataset.v; ligaMenu(true); },
@@ -2648,7 +2649,15 @@ function profePlayerReport(uid) {
   const mine = S;
   try { S = Object.assign(fresh(), JSON.parse(x.state || '{}')); report(); } finally { S = mine; }
   const top = $ov.querySelector('.mtop'); if (top) top.innerHTML = `<button class="link" data-act="pplayers">← Jugadores</button><span class="eyebrow">Informe de ${esc(x.username)}</span>`;
-  const cp = $ov.querySelector('[data-act=repcopy]'); if (cp) cp.remove();
+  const cp = $ov.querySelector('[data-act=repcopy]');
+  if (cp) cp.outerHTML = `<button class="link" data-act="pdelplayer" data-uid="${esc(uid)}">${DELP === uid ? `Tocá otra vez para borrar a ${esc(x.username)} (su progreso se pierde)` : 'Borrar este jugador'}</button>`;
+}
+let DELP = null;
+async function profeDeletePlayer(uid) {
+  if (DELP !== uid) { DELP = uid; return profePlayerReport(uid); }
+  DELP = null;
+  try { await FB.del('players/' + uid); toast('Jugador borrado.'); } catch (e) { toast('No se pudo borrar: ' + fbErr(e)); }
+  profePlayers();
 }
 function fbBoot() {
   FB.onAuth(onAuthChange);
