@@ -41,9 +41,17 @@ service cloud.firestore {
         allow read: if signedIn();
         allow create, update: if signedIn() && request.auth.uid == uid
           && exists(/databases/$(database)/documents/leagues/$(code));
-        allow delete: if signedIn() && (request.auth.uid == uid
+        allow delete: if signedIn() && (request.auth.uid == uid || isAdmin()
           || get(/databases/$(database)/documents/leagues/$(code)).data.owner == request.auth.uid);
       }
+    }
+
+    // Usuario -> cuenta actual: usernames/{usuario}. El administrador la cambia cuando pone un PIN nuevo.
+    match /usernames/{name} {
+      allow get: if true;
+      allow create: if isAdmin() || (signedIn() && request.resource.data.uid == request.auth.uid
+        && request.auth.token.email == name + '@golazo-english.app');
+      allow update, delete: if isAdmin();
     }
 
     // Todo lo demás, cerrado.

@@ -2322,8 +2322,9 @@ const ACT = {
   gologin: () => { AUTH.mode = 'cloud'; try { localStorage.removeItem('golazo-mode'); } catch (e) { } LG.tab = S.started ? 'up' : 'in'; LG.msg = ''; loginScreen(); },
   logout: () => doLogout(),
   pplayers: () => profePlayers(),
-  pplayer: b => profePlayerReport(b.dataset.uid),
+  pplayer: b => { RP.msg = ''; DELP = null; profePlayerReport(b.dataset.uid); },
   pdelplayer: b => profeDeletePlayer(b.dataset.uid),
+  presetpin: b => resetPin(b.dataset.uid),
   liga: () => { LQ.msg = ''; ligaMenu(); },
   lqsel: b => { LQ.cur = b.dataset.c; LQ.armLeave = false; ligaMenu(); },
   lqview: b => { LQ.view = b.dataset.v; ligaMenu(true); },
@@ -2423,6 +2424,7 @@ function loginScreen() {
     ${LG.tab === 'up' ? `<div class="field"><label for="lg-pin2">Repetí el PIN</label><input id="lg-pin2" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" placeholder="••••••"><small>Anotalo en un lugar seguro: lo vas a necesitar para entrar desde otro aparato.</small></div>
       ${hasLocal ? `<button class="toggle" style="width:min(380px,100%)" data-act="lgkeep" aria-pressed="${LG.keep}">Usar el progreso de este aparato (${esc(S.club)})<i></i></button>` : ''}` : ''}
     <button class="btn" data-act="${LG.tab === 'up' ? 'lgup' : 'lgin'}" ${LG.busy ? 'disabled' : ''}>${LG.busy ? 'Conectando…' : LG.tab === 'up' ? 'Crear cuenta' : 'Entrar'}</button>
+    ${LG.tab === 'in' ? `<details style="width:min(380px,100%);text-align:left"><summary class="link" style="cursor:pointer">¿Te olvidaste el PIN?</summary><p class="muted" style="font-weight:600;font-size:14px;margin-top:6px">Pedile a quien armó el juego que te ponga un PIN nuevo desde el Modo profe. Entrás con el mismo usuario y no perdés nada: ni tu club, ni tus cartas, ni tus ligas.</p></details>` : ''}
     <button class="link" data-act="lglocal">Jugar sin cuenta (el progreso queda solo en este aparato)</button>
   </div>`);
 }
@@ -2435,7 +2437,7 @@ async function doLogin() {
   const { u, pin } = readLogin();
   if (!u || !/^\d{6}$/.test(pin)) { LG.msg = 'Escribí tu usuario y tu PIN de 6 números.'; return loginScreen(); }
   LG.busy = true; LG.msg = ''; loginScreen();
-  try { AUTH.keepLocal = false; await FB.signIn(userEmail(u), pin); }
+  try { AUTH.keepLocal = false; await FB.signIn(await resolveEmail(u), pin); }
   catch (e) { LG.busy = false; LG.msg = fbErr(e); loginScreen(); }
 }
 async function doSignup() {
@@ -2448,8 +2450,30 @@ async function doSignup() {
   try { AUTH.keepLocal = !!(LG.keep && S.started); await FB.signUp(userEmail(u), pin); }
   catch (e) { LG.busy = false; LG.msg = fbErr(e); loginScreen(); }
 }
+async function resolveEmail(u) {
+  try { const m = await FB.get('usernames/' + u); if (m.exists() && m.data().email) return m.data().email; } catch (e) { }
+  return userEmail(u);
+}
+// cada usuario tiene una ficha usernames/{usuario} que apunta a su cuenta actual
+async function checkMapping(user) {
+  try {
+    const m = await FB.get('usernames/' + AUTH.username);
+    if (!m.exists()) { await FB.set('usernames/' + AUTH.username, { uid: user.uid, email: user.email }, false); return true; }
+    if (m.data().uid && m.data().uid !== user.uid) return false;
+  } catch (e) { }
+  return true;
+}
 async function onAuthChange(user) {
-  AUTH.ready = true; AUTH.user = user || null; AUTH.username = user && user.email ? user.email.split('@')[0] : '';
+  AUTH.ready = true; AUTH.user = user || null; AUTH.username = user && user.email ? user.email.split('@')[0].split('+')[0] : '';
+  if (user && !(await checkMapping(user))) {
+    // al chico le pusieron un PIN nuevo: esta sesión es de la cuenta vieja
+    try { await FB.signOut(); } catch (e) { }
+    try { localStorage.removeItem(STORE); } catch (e) { }
+    S = fresh(); LG.tab = 'in'; LG.user = AUTH.username; LG.busy = false; LG.msg = 'Tu PIN se cambió. Entrá con el PIN nuevo que te pasaron.';
+    AUTH.user = null; render();
+    if (AUTH.waiting) { AUTH.waiting = false; afterIntro(); } else if (!$ov.querySelector('.intro')) loginScreen();
+    return;
+  }
   if (AUTH.username === ADMIN_USER) PROFE = true;
   if (user) {
     try {
@@ -2650,7 +2674,32 @@ function profePlayerReport(uid) {
   try { S = Object.assign(fresh(), JSON.parse(x.state || '{}')); report(); } finally { S = mine; }
   const top = $ov.querySelector('.mtop'); if (top) top.innerHTML = `<button class="link" data-act="pplayers">← Jugadores</button><span class="eyebrow">Informe de ${esc(x.username)}</span>`;
   const cp = $ov.querySelector('[data-act=repcopy]');
-  if (cp) cp.outerHTML = `<button class="link" data-act="pdelplayer" data-uid="${esc(uid)}">${DELP === uid ? `Tocá otra vez para borrar a ${esc(x.username)} (su progreso se pierde)` : 'Borrar este jugador'}</button>`;
+  if (cp) cp.outerHTML = `${x.username && x.username !== ADMIN_USER ? `<div class="panel edform"><h2 class="h2" style="font-size:24px">¿Se olvidó el PIN?</h2>
+      <p class="muted" style="font-weight:600">Poné un PIN nuevo de 6 números para <b>${esc(x.username)}</b>. Entra con el mismo usuario y conserva su club, sus cartas, sus monedas y sus ligas.</p>
+      ${RP.msg ? `<div class="msg ${RP.ok ? '' : 'warn'}" role="status">${RP.msg}</div>` : ''}
+      <div class="field"><label for="rp-pin">PIN nuevo</label><input class="sm" id="rp-pin" inputmode="numeric" maxlength="6" placeholder="Ej.: 482917" autocomplete="off"></div>
+      <button class="btn" data-act="presetpin" data-uid="${esc(uid)}" ${RP.busy ? 'disabled' : ''}>${RP.busy ? 'Cambiando…' : 'Poner PIN nuevo'}</button></div>` : ''}
+    <button class="link" data-act="pdelplayer" data-uid="${esc(uid)}">${DELP === uid ? `Tocá otra vez para borrar a ${esc(x.username)} (su progreso se pierde)` : 'Borrar este jugador'}</button>`;
+}
+const RP = { msg: '', ok: false, busy: false };
+async function resetPin(uid) {
+  const x = PLAYERS_CACHE.find(p => p.uid === uid); if (!x || RP.busy) return;
+  const pin = (document.getElementById('rp-pin')?.value || '').trim();
+  if (!/^\d{6}$/.test(pin)) { RP.ok = false; RP.msg = 'El PIN tiene que tener exactamente 6 números.'; return profePlayerReport(uid); }
+  RP.busy = true; RP.msg = ''; profePlayerReport(uid);
+  try {
+    const u = x.username, email = `${u}+r${Date.now().toString(36)}@golazo-english.app`;
+    const { updatedAt, ...data } = x; delete data.uid;
+    const newUid = await FB.makeAccount(email, pin, 'players/{uid}', data);
+    await FB.set('usernames/' + u, { uid: newUid, email }, false);
+    let st = {}; try { st = JSON.parse(x.state || '{}'); } catch (e) { }
+    for (const c of st.leagues || []) { try { await FB.del(`leagues/${c}/members/${uid}`); } catch (e) { } }
+    try { await FB.del('players/' + uid); } catch (e) { }
+    PLAYERS_CACHE = PLAYERS_CACHE.map(p => p.uid === uid ? { ...p, uid: newUid } : p);
+    RP.busy = false; RP.ok = true;
+    RP.msg = `Listo. Decile a <b>${esc(u)}</b> que entre con su mismo usuario y el PIN nuevo: <b>${pin}</b>. Sus puntos de la liga vuelven a aparecer la próxima vez que juegue.`;
+    profePlayerReport(newUid);
+  } catch (e) { RP.busy = false; RP.ok = false; RP.msg = 'No se pudo cambiar el PIN: ' + esc(fbErr(e)); profePlayerReport(uid); }
 }
 let DELP = null;
 async function profeDeletePlayer(uid) {
@@ -2675,14 +2724,16 @@ intro();
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, getDocs, deleteDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-const app = initializeApp({
+const cfg = {
   apiKey: 'AIzaSyD6Kiq_IIk0-kZIHFt3s1THv0U-yi0bwtc',
   authDomain: 'golazo-33a4b.firebaseapp.com',
   projectId: 'golazo-33a4b',
   storageBucket: 'golazo-33a4b.firebasestorage.app',
   messagingSenderId: '491405706554',
   appId: '1:491405706554:web:b2500f1d79eb2c9694bc03',
-});
+};
+const app = initializeApp(cfg);
+let tools = null;
 const auth = getAuth(app), db = getFirestore(app);
 window.FB = {
   onAuth: cb => onAuthStateChanged(auth, cb),
@@ -2693,6 +2744,15 @@ window.FB = {
   set: (path, data, merge = true) => setDoc(doc(db, path), { ...data, updatedAt: serverTimestamp() }, { merge }),
   list: path => getDocs(collection(db, path)),
   del: path => deleteDoc(doc(db, path)),
+  // crea una cuenta en una instancia aparte (la sesión del administrador no se toca) y guarda su progreso como esa cuenta
+  makeAccount: async (email, pass, pathTpl, data) => {
+    tools = tools || initializeApp(cfg, 'admin-tools');
+    const tAuth = getAuth(tools), tDb = getFirestore(tools);
+    const cred = await createUserWithEmailAndPassword(tAuth, email, pass);
+    await setDoc(doc(tDb, pathTpl.replace('{uid}', cred.user.uid)), { ...data, updatedAt: serverTimestamp() });
+    await signOut(tAuth);
+    return cred.user.uid;
+  },
 };
 dispatchEvent(new Event('fb-ready'));
 </script>
